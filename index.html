@@ -1,1 +1,792 @@
+<!-- Marco Version 1.0 -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Performance</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f2f5;
+    --border: #e2e6ec;
+    --text-primary: #1a202c;
+    --text-muted: #94a3b8;
+    --green-light: #f0fdf4;   --green-border: #bbf7d0; --green-text: #15803d;
+    --yellow-light: #fffbeb;  --yellow-border: #fde68a; --yellow-text: #92400e;
+    --red-light: #fef2f2;     --red-border: #fecaca;   --red-text: #991b1b;
+    --crimson-light: #fff1f2; --crimson-border: #fecdd3; --crimson-text: #9f1239;
+    --blue-light: #eff6ff;    --blue-border: #bfdbfe;  --blue-text: #1d4ed8;
+    --radius-sm: 10px;
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html, body { width: 100%; min-height: 100%; }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bg);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0; margin: 0;
+    color: var(--text-primary);
+  }
+
+  .dashboard {
+    width: 100%; flex: 1;
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 24px 20px;
+    padding-top: max(24px, env(safe-area-inset-top, 24px));
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+    box-sizing: border-box;
+  }
+
+  .page-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+  }
+
+  /* ── KPI ── */
+  .kpi-block {
+    background: #fff; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); padding: 28px 28px 24px;
+    display: flex; flex-direction: column;
+  }
+  .kpi-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: 'DM Mono', monospace; font-size: 56px; font-weight: 500;
+    color: var(--text-primary); line-height: 1; letter-spacing: -0.02em;
+  }
+  .kpi-value.bump { animation: bump 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes bump { 0%{transform:scale(1)} 50%{transform:scale(1.05)} 100%{transform:scale(1)} }
+  .kpi-sub { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+
+  .kpi-bar-wrap { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+  .kpi-bar-track {
+    width: 100%; height: 8px; background: var(--border);
+    border-radius: 99px; overflow: hidden; display: flex; gap: 0;
+  }
+  .kpi-seg { height: 100%; transition: width 0.45s cubic-bezier(0.4,0,0.2,1); }
+  .kpi-seg-good     { background: #16a34a; }
+  .kpi-seg-medium   { background: #d97706; }
+  .kpi-seg-bad      { background: #dc2626; }
+  .kpi-seg-verybad  { background: #9f1239; }
+
+  .kpi-legend { display: flex; gap: 10px; justify-content: space-between; }
+  .legend-item {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 10px; color: var(--text-muted); white-space: nowrap;
+  }
+  .legend-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Counter rows ── */
+  .counter-row {
+    display: flex; align-items: stretch; gap: 16px; height: 96px;
+  }
+  .counter-row[hidden] { display: none !important; }
+
+  /* ── Main buttons ── */
+  .btn {
+    flex: 0 0 38%;
+    display: flex; align-items: center; justify-content: flex-start;
+    gap: 14px; padding: 0 24px;
+    border: none; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 17px; font-weight: 500;
+    cursor: pointer;
+    transition: filter var(--transition), transform var(--transition), box-shadow var(--transition);
+    position: relative; overflow: hidden;
+    user-select: none; -webkit-tap-highlight-color: transparent; height: 100%;
+  }
+  .btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(255,255,255,0); transition: background var(--transition);
+  }
+  .btn:hover::after { background: rgba(255,255,255,0.12); }
+  .btn:active { transform: scale(0.97); }
+  .btn.click-flash { animation: clickFlash 0.25s ease; }
+  @keyframes clickFlash {
+    0%{transform:scale(1)} 40%{transform:scale(0.96)} 80%{transform:scale(1.02)} 100%{transform:scale(1)}
+  }
+  .btn-emoji { font-size: 26px; line-height: 1; flex-shrink: 0; }
+  .btn-text  { white-space: nowrap; }
+
+  .btn-good    { background:#16a34a; color:#fff; box-shadow:0 2px 8px rgba(22,163,74,.22); }
+  .btn-good:hover    { filter:brightness(.92); box-shadow:0 4px 14px rgba(22,163,74,.32); }
+  .btn-medium  { background:#d97706; color:#fff; box-shadow:0 2px 8px rgba(217,119,6,.22); }
+  .btn-medium:hover  { filter:brightness(.92); box-shadow:0 4px 14px rgba(217,119,6,.32); }
+  .btn-bad     { background:#dc2626; color:#fff; box-shadow:0 2px 8px rgba(220,38,38,.22); }
+  .btn-bad:hover     { filter:brightness(.92); box-shadow:0 4px 14px rgba(220,38,38,.32); }
+  .btn-verybad { background:#9f1239; color:#fff; box-shadow:0 2px 8px rgba(159,18,57,.22); }
+  .btn-verybad:hover { filter:brightness(.92); box-shadow:0 4px 14px rgba(159,18,57,.32); }
+
+  /* ── Stat pills ── */
+  .stat-pill {
+    flex: 1; display: flex; align-items: center; gap: 0;
+    border-radius: var(--radius-sm); border: 1px solid; overflow: hidden;
+  }
+  .stat-pill-good    { background:var(--green-light);   border-color:var(--green-border); }
+  .stat-pill-medium  { background:var(--yellow-light);  border-color:var(--yellow-border); }
+  .stat-pill-bad     { background:var(--red-light);     border-color:var(--red-border); }
+  .stat-pill-verybad { background:var(--crimson-light); border-color:var(--crimson-border); }
+
+  .stat-block {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; padding: 0 16px; gap: 3px;
+  }
+  .stat-block + .stat-block { border-left: 1px solid; }
+  .stat-pill-good    .stat-block + .stat-block { border-color:var(--green-border); }
+  .stat-pill-medium  .stat-block + .stat-block { border-color:var(--yellow-border); }
+  .stat-pill-bad     .stat-block + .stat-block { border-color:var(--red-border); }
+  .stat-pill-verybad .stat-block + .stat-block { border-color:var(--crimson-border); }
+
+  .stat-number {
+    font-family:'DM Mono',monospace; font-size:24px;
+    font-weight:500; line-height:1;
+  }
+  .stat-number.tick { animation:tick 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes tick {
+    0%{transform:translateY(0) scale(1)} 40%{transform:translateY(-4px) scale(1.06)} 100%{transform:translateY(0) scale(1)}
+  }
+  .stat-pill-good    .stat-number { color:var(--green-text); }
+  .stat-pill-medium  .stat-number { color:var(--yellow-text); }
+  .stat-pill-bad     .stat-number { color:var(--red-text); }
+  .stat-pill-verybad .stat-number { color:var(--crimson-text); }
+
+  .stat-desc {
+    font-size:10px; font-weight:600; letter-spacing:0.07em;
+    text-transform:uppercase; color:var(--text-muted);
+  }
+
+  /* ── Timer ── */
+  .timer-row { display:flex; align-items:stretch; gap:16px; height:96px; }
+  .timer-display {
+    flex:1; background:#fff; border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    display:flex; flex-direction:column; justify-content:center; padding:0 20px; gap:3px;
+  }
+  .timer-label {
+    font-size:10px; font-weight:600; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-muted); white-space:nowrap;
+  }
+  .timer-value {
+    font-family:'DM Mono',monospace; font-size:32px; font-weight:500;
+    color:var(--text-primary); line-height:1; letter-spacing:-0.01em; transition:color 0.2s;
+  }
+  .timer-value.running { color:#16a34a; }
+  .btn-timer {
+    flex:0 0 38%;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    border:none; border-radius:var(--radius-sm);
+    font-family:inherit; font-size:16px; font-weight:500;
+    color:#fff; background:#475569; box-shadow:0 2px 8px rgba(71,85,105,.22);
+    cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent;
+    touch-action:none; transition:filter .15s,box-shadow .15s,transform .15s,background .15s;
+    white-space:nowrap;
+  }
+  .btn-timer.running { background:#16a34a; box-shadow:0 2px 8px rgba(22,163,74,.3); }
+  .btn-timer:active  { transform:scale(0.97); }
+  .timer-icon { font-size:20px; line-height:1; }
+
+  /* ── Bottom bar (reset + settings) ── */
+  .bottom-bar { display:flex; justify-content:flex-end; gap:8px; }
+
+  .btn-reset, .btn-settings, .btn-log {
+    padding:8px 14px;
+    border-radius:99px;
+    font-family:inherit; font-size:12px; font-weight:500;
+    cursor:pointer;
+    display:flex; align-items:center; gap:5px;
+    -webkit-tap-highlight-color:transparent;
+    transition:background .15s,border-color .15s,box-shadow .15s,transform .15s;
+  }
+  .btn-reset {
+    border:1.5px solid var(--blue-border);
+    background:var(--blue-light); color:var(--blue-text);
+  }
+  .btn-reset:hover   { background:#dbeafe; border-color:#93c5fd; box-shadow:0 2px 8px rgba(59,130,246,.14); }
+  .btn-reset:active  { transform:scale(0.95); }
+
+  .btn-settings, .btn-log {
+    border:1.5px solid var(--border);
+    background:#fff; color:var(--text-primary);
+  }
+  .btn-settings:hover, .btn-log:hover  { background:#f8fafc; border-color:#cbd5e1; box-shadow:0 2px 8px rgba(0,0,0,.07); }
+  .btn-settings:active, .btn-log:active { transform:scale(0.95); }
+
+  /* ── Log modal ── */
+  .log-list {
+    padding:0 22px 4px;
+    display:flex; flex-direction:column; gap:6px;
+    max-height:55vh; overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .log-empty {
+    text-align:center; font-size:13px; color:var(--text-muted);
+    padding:28px 0;
+  }
+  .log-entry {
+    display:flex; align-items:center; gap:12px;
+    padding:10px 14px; border-radius:8px;
+    border:1px solid var(--border); background:#fafafa;
+    animation:fadeSlideIn 0.18s ease;
+  }
+  @keyframes fadeSlideIn {
+    from { opacity:0; transform:translateY(4px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  .log-entry-dot {
+    width:8px; height:8px; border-radius:50%; flex-shrink:0;
+  }
+  .log-entry-cat {
+    flex:1; font-size:13px; font-weight:500; color:var(--text-primary);
+    white-space:nowrap;
+  }
+  .log-entry-time {
+    font-family:'DM Mono',monospace; font-size:11px;
+    color:var(--text-muted); white-space:nowrap;
+  }
+  .modal-backdrop {
+    position:fixed; inset:0; background:rgba(15,23,42,0.45);
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100; padding:24px;
+    opacity:0; pointer-events:none;
+    transition:opacity 0.2s ease;
+  }
+  .modal-backdrop.open { opacity:1; pointer-events:all; }
+
+  .modal {
+    background:#fff; border-radius:16px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.08);
+    width:100%; max-width:360px;
+    transform:translateY(10px) scale(0.98);
+    transition:transform 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s ease;
+    opacity:0;
+  }
+  .modal-backdrop.open .modal { transform:translateY(0) scale(1); opacity:1; }
+
+  .modal-header {
+    padding:22px 22px 0;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .modal-title { font-size:16px; font-weight:600; color:var(--text-primary); }
+  .modal-close {
+    width:30px; height:30px; border-radius:99px;
+    border:none; background:#f1f5f9; color:#64748b;
+    font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s;
+  }
+  .modal-close:hover { background:#e2e8f0; }
+
+  .modal-desc {
+    padding:8px 22px 0;
+    font-size:12px; color:var(--text-muted); line-height:1.5;
+  }
+
+  .modal-body { padding:18px 22px; display:flex; flex-direction:column; gap:10px; }
+
+  .setting-row {
+    display:flex; align-items:center; gap:14px;
+    padding:12px 14px; border-radius:10px;
+    border:1.5px solid var(--border); background:#fafafa;
+    cursor:pointer; transition:border-color .15s, background .15s;
+    user-select:none;
+  }
+  .setting-row:hover { background:#f1f5f9; border-color:#cbd5e1; }
+  .setting-row.checked { background:#f0fdf4; border-color:#86efac; }
+
+  .setting-emoji { font-size:22px; line-height:1; flex-shrink:0; }
+
+  .setting-label {
+    flex:1; font-size:14px; font-weight:500; color:var(--text-primary);
+  }
+
+  /* Custom checkbox */
+  .setting-check {
+    width:20px; height:20px; border-radius:6px;
+    border:2px solid #cbd5e1; background:#fff;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; transition:background .15s, border-color .15s;
+    pointer-events:none;
+  }
+  .setting-row.checked .setting-check {
+    background:#16a34a; border-color:#16a34a;
+  }
+  .setting-check::after {
+    content:''; display:none;
+    width:5px; height:9px;
+    border:2px solid #fff; border-top:none; border-left:none;
+    transform:rotate(45deg) translate(-1px,-1px);
+  }
+  .setting-row.checked .setting-check::after { display:block; }
+
+  /* Validation message */
+  .modal-error {
+    margin:0 22px; padding:10px 14px;
+    border-radius:8px; background:#fef2f2; border:1px solid #fecaca;
+    font-size:12px; color:#991b1b; font-weight:500;
+    display:none;
+  }
+  .modal-error.visible { display:block; }
+
+  .modal-footer {
+    padding:0 22px 20px;
+    display:flex; gap:8px; justify-content:flex-end; margin-top:4px;
+  }
+  .btn-modal-cancel {
+    padding:9px 18px; border-radius:8px;
+    border:1.5px solid var(--border); background:#fff;
+    font-family:inherit; font-size:13px; font-weight:500;
+    color:var(--text-primary); cursor:pointer;
+    transition:background .15s;
+  }
+  .btn-modal-cancel:hover { background:#f1f5f9; }
+
+  .btn-modal-save {
+    padding:9px 18px; border-radius:8px;
+    border:none; background:#1d4ed8;
+    font-family:inherit; font-size:13px; font-weight:500;
+    color:#fff; cursor:pointer;
+    transition:background .15s, box-shadow .15s;
+  }
+  .btn-modal-save:hover { background:#1e40af; box-shadow:0 2px 8px rgba(29,78,216,.3); }
+
+  /* ── Responsive ── */
+  @media (max-width:430px) {
+    .dashboard    { padding:20px 14px; gap:10px; }
+    .kpi-block    { padding:18px 16px 16px; }
+    .kpi-value    { font-size:44px; }
+    .kpi-sub      { font-size:11px; }
+    .kpi-bar-wrap { margin-top:12px; }
+    .counter-row  { height:72px; gap:10px; }
+    .timer-row    { height:72px; gap:10px; }
+    .btn          { font-size:15px; padding:0 16px; gap:10px; }
+    .btn-emoji    { font-size:20px; }
+    .stat-number  { font-size:18px; }
+    .stat-desc    { font-size:9px; }
+    .timer-value  { font-size:26px; }
+    .btn-timer    { font-size:14px; gap:8px; }
+    .timer-icon   { font-size:18px; }
+    .page-title   { font-size:10px; }
+  }
+</style>
+</head>
+<body>
+<div class="dashboard">
+
+  <p class="page-title">System Performance</p>
+
+  <!-- KPI -->
+  <div class="kpi-block">
+    <div class="kpi-label">Total Clicks</div>
+    <div class="kpi-value" id="totalDisplay">0</div>
+    <div class="kpi-sub">Total measurements recorded</div>
+    <div class="kpi-bar-wrap">
+      <div class="kpi-bar-track">
+        <div class="kpi-seg kpi-seg-good"    id="seg-good"    style="width:0%"></div>
+        <div class="kpi-seg kpi-seg-medium"  id="seg-medium"  style="width:0%"></div>
+        <div class="kpi-seg kpi-seg-bad"     id="seg-bad"     style="width:0%"></div>
+        <div class="kpi-seg kpi-seg-verybad" id="seg-verybad" style="width:0%"></div>
+      </div>
+      <div class="kpi-legend" id="kpi-legend">
+        <div class="legend-item" id="leg-good">   <div class="legend-dot" style="background:#16a34a"></div>Good</div>
+        <div class="legend-item" id="leg-medium"> <div class="legend-dot" style="background:#d97706"></div>Medium</div>
+        <div class="legend-item" id="leg-bad">    <div class="legend-dot" style="background:#dc2626"></div>Poor</div>
+        <div class="legend-item" id="leg-verybad" style="display:none"><div class="legend-dot" style="background:#9f1239"></div>Very Bad</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timer -->
+  <div class="timer-row">
+    <div class="timer-display">
+      <div class="timer-label">Timer</div>
+      <div class="timer-value" id="timerDisplay">0.0s</div>
+    </div>
+    <button class="btn-timer" id="btn-timer">
+      <span class="timer-icon">⏱</span>
+      <span>Hold</span>
+    </button>
+  </div>
+
+  <!-- Good -->
+  <div class="counter-row" id="row-good">
+    <button class="btn btn-good" onclick="increment('good')" id="btn-good">
+      <span class="btn-emoji">😊</span><span class="btn-text">Good</span>
+    </button>
+    <div class="stat-pill stat-pill-good">
+      <div class="stat-block">
+        <div class="stat-number" id="count-good">0</div>
+        <div class="stat-desc">Clicks</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-number" id="pct-good">0 %</div>
+        <div class="stat-desc">Share</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Medium -->
+  <div class="counter-row" id="row-medium">
+    <button class="btn btn-medium" onclick="increment('medium')" id="btn-medium">
+      <span class="btn-emoji">😐</span><span class="btn-text">Medium</span>
+    </button>
+    <div class="stat-pill stat-pill-medium">
+      <div class="stat-block">
+        <div class="stat-number" id="count-medium">0</div>
+        <div class="stat-desc">Clicks</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-number" id="pct-medium">0 %</div>
+        <div class="stat-desc">Share</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bad -->
+  <div class="counter-row" id="row-bad">
+    <button class="btn btn-bad" onclick="increment('bad')" id="btn-bad">
+      <span class="btn-emoji">☹️</span><span class="btn-text">Poor</span>
+    </button>
+    <div class="stat-pill stat-pill-bad">
+      <div class="stat-block">
+        <div class="stat-number" id="count-bad">0</div>
+        <div class="stat-desc">Clicks</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-number" id="pct-bad">0 %</div>
+        <div class="stat-desc">Share</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Very Bad (hidden by default) -->
+  <div class="counter-row" id="row-verybad" hidden>
+    <button class="btn btn-verybad" onclick="increment('verybad')" id="btn-verybad">
+      <span class="btn-emoji">😫</span><span class="btn-text">Very Bad</span>
+    </button>
+    <div class="stat-pill stat-pill-verybad">
+      <div class="stat-block">
+        <div class="stat-number" id="count-verybad">0</div>
+        <div class="stat-desc">Clicks</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-number" id="pct-verybad">0 %</div>
+        <div class="stat-desc">Share</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <button class="btn-reset"    onclick="resetAll()">↺ Reset</button>
+    <button class="btn-log"      onclick="openLog()">📋 Log</button>
+    <button class="btn-settings" onclick="openSettings()">⚙ Settings</button>
+  </div>
+
+</div>
+
+<!-- Log Modal -->
+<div class="modal-backdrop" id="log-backdrop">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <span class="modal-title">Event Log</span>
+      <button class="modal-close" onclick="closeLog()">✕</button>
+    </div>
+    <p class="modal-desc">Each category click with local timestamp.</p>
+    <div class="log-list" id="log-list">
+      <div class="log-empty" id="log-empty">No entries yet.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeLog()">Close</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Categories</span>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <p class="modal-desc">Choose which categories are visible on the dashboard.</p>
+    <div class="modal-body">
+      <div class="setting-row checked" id="sr-good" onclick="toggleSetting('good')">
+        <span class="setting-emoji">😊</span>
+        <span class="setting-label">Good</span>
+        <div class="setting-check"></div>
+      </div>
+      <div class="setting-row checked" id="sr-medium" onclick="toggleSetting('medium')">
+        <span class="setting-emoji">😐</span>
+        <span class="setting-label">Medium</span>
+        <div class="setting-check"></div>
+      </div>
+      <div class="setting-row checked" id="sr-bad" onclick="toggleSetting('bad')">
+        <span class="setting-emoji">☹️</span>
+        <span class="setting-label">Poor</span>
+        <div class="setting-check"></div>
+      </div>
+      <div class="setting-row" id="sr-verybad" onclick="toggleSetting('verybad')">
+        <span class="setting-emoji">😫</span>
+        <span class="setting-label">Very Bad</span>
+        <div class="setting-check"></div>
+      </div>
+    </div>
+    <div class="modal-error" id="modal-error">At least one category must remain enabled.</div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="btn-modal-save"   onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Persistence ───────────────────────────────────────
+  const LS_KEY = 'sysperfv1';
+
+  function saveAll() {
+    localStorage.setItem(LS_KEY, JSON.stringify({ state, visible, logEntries }));
+  }
+
+  function loadAll() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.state)      Object.assign(state,   d.state);
+      if (d.visible)    Object.assign(visible,  d.visible);
+      if (d.logEntries) logEntries = d.logEntries;
+    } catch(e) {}
+  }
+
+  // ── State ──────────────────────────────────────────────
+  const state   = { good:0, medium:0, bad:0, verybad:0 };
+  const visible  = { good:true, medium:true, bad:true, verybad:false };
+  // temp state while modal is open
+  let tempVisible = {};
+
+  const CATS = ['good','medium','bad','verybad'];
+
+  // ── Timer ──────────────────────────────────────────────
+  let timerInterval = null, timerMs = 0;
+  const timerDisplay = document.getElementById('timerDisplay');
+  const btnTimer     = document.getElementById('btn-timer');
+
+  function formatTimer(ms) {
+    if (ms < 60000) return (ms/1000).toFixed(1)+'s';
+    const m = Math.floor(ms/60000);
+    const s = ((ms%60000)/1000).toFixed(1).padStart(4,'0');
+    return m+'m '+s+'s';
+  }
+  function startTimer() {
+    timerMs = 0; timerDisplay.textContent = '0.0s';
+    timerDisplay.classList.add('running'); btnTimer.classList.add('running');
+    timerInterval = setInterval(() => { timerMs += 100; timerDisplay.textContent = formatTimer(timerMs); }, 100);
+  }
+  function stopTimer() {
+    clearInterval(timerInterval); timerInterval = null;
+    timerDisplay.classList.remove('running'); btnTimer.classList.remove('running');
+  }
+  function resetTimer() {
+    stopTimer(); timerMs = 0; timerDisplay.textContent = '0.0s';
+  }
+  btnTimer.addEventListener('pointerdown', e => { e.preventDefault(); startTimer(); });
+  btnTimer.addEventListener('pointerup',     () => stopTimer());
+  btnTimer.addEventListener('pointerleave',  () => stopTimer());
+  btnTimer.addEventListener('pointercancel', () => stopTimer());
+  btnTimer.addEventListener('contextmenu',   e => e.preventDefault());
+
+  // ── Counter ────────────────────────────────────────────
+  function increment(type) {
+    if (!visible[type]) return;
+    state[type]++;
+    addLogEntry(type);
+    updateUI(type);
+    animateButton(type);
+    saveAll();
+  }
+
+  function animateButton(type) {
+    const btn = document.getElementById('btn-'+type);
+    btn.classList.remove('click-flash'); void btn.offsetWidth;
+    btn.classList.add('click-flash');
+    btn.addEventListener('animationend', () => btn.classList.remove('click-flash'), { once:true });
+  }
+  function animateTick(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('tick'); void el.offsetWidth;
+    el.classList.add('tick');
+    el.addEventListener('animationend', () => el.classList.remove('tick'), { once:true });
+  }
+  function animateBump() {
+    const el = document.getElementById('totalDisplay');
+    el.classList.remove('bump'); void el.offsetWidth;
+    el.classList.add('bump');
+    el.addEventListener('animationend', () => el.classList.remove('bump'), { once:true });
+  }
+
+  function updateUI(changed) {
+    // Only count visible categories
+    const activeCats = CATS.filter(t => visible[t]);
+    const total = activeCats.reduce((s,t) => s+state[t], 0);
+
+    document.getElementById('totalDisplay').textContent = total;
+    if (changed) animateBump();
+
+    CATS.forEach(type => {
+      const count = state[type];
+      const pct   = (visible[type] && total > 0) ? Math.round(count/total*100) : 0;
+      const segW  = (visible[type] && total > 0) ? count/total*100 : 0;
+
+      document.getElementById('count-'+type).textContent = count;
+      document.getElementById('pct-'+type).textContent   = pct+' %';
+      document.getElementById('seg-'+type).style.width   = segW+'%';
+
+      if (type === changed) {
+        animateTick('count-'+type);
+        animateTick('pct-'+type);
+      }
+    });
+
+    // Update legend visibility
+    CATS.forEach(type => {
+      const leg = document.getElementById('leg-'+type);
+      if (leg) leg.style.display = visible[type] ? '' : 'none';
+    });
+  }
+
+  function applyVisibility() {
+    CATS.forEach(type => {
+      const row = document.getElementById('row-'+type);
+      if (visible[type]) row.removeAttribute('hidden');
+      else               row.setAttribute('hidden','');
+    });
+    updateUI(null);
+  }
+
+  function resetAll() {
+    CATS.forEach(t => state[t] = 0);
+    updateUI(null);
+    resetTimer();
+    clearLog();
+    saveAll();
+  }
+
+  // ── Log ───────────────────────────────────────────────
+  const LOG_META = {
+    good:    { label:'Good',     emoji:'😊', color:'#16a34a' },
+    medium:  { label:'Medium',   emoji:'😐', color:'#d97706' },
+    bad:     { label:'Poor',     emoji:'☹️', color:'#dc2626' },
+    verybad: { label:'Very Bad', emoji:'😫', color:'#9f1239' },
+  };
+
+  let logEntries = [];
+
+  function addLogEntry(type) {
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const date = now.toLocaleDateString([], { month:'short', day:'numeric' });
+    logEntries.unshift({ type, time, date }); // newest first
+    renderLog();
+  }
+
+  function renderLog() {
+    const list  = document.getElementById('log-list');
+    const empty = document.getElementById('log-empty');
+    // Remove old entries (keep empty placeholder)
+    Array.from(list.querySelectorAll('.log-entry')).forEach(el => el.remove());
+
+    if (logEntries.length === 0) {
+      empty.style.display = '';
+      return;
+    }
+    empty.style.display = 'none';
+
+    logEntries.forEach(entry => {
+      const meta = LOG_META[entry.type];
+      const el = document.createElement('div');
+      el.className = 'log-entry';
+      el.innerHTML = `
+        <div class="log-entry-dot" style="background:${meta.color}"></div>
+        <span class="log-entry-cat">${meta.emoji} ${meta.label}</span>
+        <span class="log-entry-time">${entry.date} · ${entry.time}</span>
+      `;
+      list.appendChild(el);
+    });
+  }
+
+  function clearLog() {
+    logEntries = [];
+    renderLog();
+  }
+
+  function openLog() {
+    renderLog();
+    document.getElementById('log-backdrop').classList.add('open');
+  }
+  function closeLog() {
+    document.getElementById('log-backdrop').classList.remove('open');
+  }
+  document.getElementById('log-backdrop').addEventListener('click', function(e) {
+    if (e.target === this) closeLog();
+  });
+
+  // ── Settings modal ────────────────────────────────────
+  function openSettings() {
+    // Clone current visible state into temp
+    tempVisible = { ...visible };
+    CATS.forEach(type => {
+      const row = document.getElementById('sr-'+type);
+      row.classList.toggle('checked', tempVisible[type]);
+    });
+    document.getElementById('modal-error').classList.remove('visible');
+    document.getElementById('modal-backdrop').classList.add('open');
+  }
+
+  function closeSettings() {
+    document.getElementById('modal-backdrop').classList.remove('open');
+  }
+
+  function toggleSetting(type) {
+    tempVisible[type] = !tempVisible[type];
+    document.getElementById('sr-'+type).classList.toggle('checked', tempVisible[type]);
+    // Hide error if valid now
+    const anyOn = CATS.some(t => tempVisible[t]);
+    if (anyOn) document.getElementById('modal-error').classList.remove('visible');
+  }
+
+  function saveSettings() {
+    const anyOn = CATS.some(t => tempVisible[t]);
+    if (!anyOn) {
+      document.getElementById('modal-error').classList.add('visible');
+      return;
+    }
+    Object.assign(visible, tempVisible);
+    applyVisibility();
+    saveAll();
+    closeSettings();
+  }
+
+  // Close on backdrop click
+  document.getElementById('modal-backdrop').addEventListener('click', function(e) {
+    if (e.target === this) closeSettings();
+  });
+
+  // Init — restore persisted data then render
+  loadAll();
+  applyVisibility();
+  renderLog();
+</script>
+</body>
+</html>
 
